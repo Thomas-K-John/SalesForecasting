@@ -1,0 +1,589 @@
+---
+title: "SalesForecasting using TimeSeries Model"
+author: "Thomas K John"
+date: "November 18, 2017"
+output:
+  pdf_document: default
+  word_document: default
+---
+# Problem Statement:
+
+### Forecasting for next 12 months ie., from Jan 2016 to Dec 2106 using Time series model for the three categories - MenClothing, WomenClothing and OthersClothing.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Preprocessing
+### Clearing the environment variabes
+```{r}
+rm(list = ls(all = TRUE))
+```
+
+### Setting the working directory
+```{r}
+setwd("I:\\DATA-SCIENCE\\SalesForecasting")
+```
+
+### Libraries used
+```{r}
+library(dplyr)
+library(imputeTS)
+library(forecast)
+```
+
+### Reading the train and test data
+```{r}
+sales_data= read.csv("Train.csv")
+```
+
+### Understanding the dataset with str() and summary()
+```{r}
+str(sales_data)
+summary(sales_data)
+```
+
+### Viewing the first 10 rows
+```{r}
+head(sales_data)
+```
+
+### Converting the date into Date datatype
+```{r}
+sales_data$Date = paste(sales_data$Year, sales_data$Month,"1", sep ="/")
+sales_data$Date= as.Date(sales_data$Date,"%Y/%m/%d")
+
+```
+
+### Splitting the data into training and validation
+```{r}
+train_data=sales_data[which(sales_data$Date <="2014/12/1"),]
+validation_data = sales_data[which(sales_data$Date > "2014/12/1"),]
+```
+
+### Verifying the train and validation
+```{r}
+summary(train_data)
+summary(validation_data)
+```
+
+### Viewing the first and last rows in train and validation data
+```{r}
+head(train_data)
+tail(train_data)
+head(validation_data)
+tail(validation_data)
+```
+
+### Spliting the Train data into three categories : 1. MenClothing, 2. WomenClothing, 3. OthersClothing
+```{r}
+train_data_men = train_data[which(train_data$ProductCategory == "MenClothing"),]
+train_data_women = train_data[which(train_data$ProductCategory == "WomenClothing"),]
+train_data_others = train_data[which(train_data$ProductCategory == "OtherClothing"),]
+```
+
+### Spliting the validation data into three categories: 1. MenClothing, 2. WomenClothing, 3. OthersClothing
+```{r}
+validation_data_men = validation_data[which(validation_data$ProductCategory == "MenClothing"),]
+validation_data_women = validation_data[which(validation_data$ProductCategory == "WomenClothing"),]
+validation_data_others = validation_data[which(validation_data$ProductCategory == "OtherClothing"),]
+```
+
+### Spliting the whole data into three categories: This will be used for the final prediction
+```{r}
+total_data_men = sales_data[which(sales_data$ProductCategory == "MenClothing"),]
+total_data_women = sales_data[which(sales_data$ProductCategory == "WomenClothing"),]
+total_data_others = sales_data[which(sales_data$ProductCategory == "OtherClothing"),]
+```
+
+# Interpolation of the sales data
+### Interpolation of the Train data with "linear"
+```{r}
+train_data_men_linear = na.interpolation(train_data_men$Sales.In.ThousandDollars.,option="linear")
+train_data_women_linear = na.interpolation(train_data_women$Sales.In.ThousandDollars.,option="linear")
+train_data_others_linear = na.interpolation(train_data_others$Sales.In.ThousandDollars.,option="linear")
+```
+
+### Interpolation of the total data with linear
+```{r}
+total_data_men_linear = na.interpolation(total_data_men$Sales.In.ThousandDollars.,option="linear")
+total_data_women_linear = na.interpolation(total_data_women$Sales.In.ThousandDollars.,option="linear")
+total_data_others_linear = na.interpolation(total_data_others$Sales.In.ThousandDollars.,option="linear")
+```
+
+### Converting the sales price from total data into Timeseries
+```{r}
+total_data_men_linear_ts = ts(total_data_men_linear, frequency = 12, start = c(2009,1,1))
+total_data_women_linear_ts = ts(total_data_women_linear, frequency = 12, start = c(2009,1,1))
+total_data_others_linear_ts = ts(total_data_others_linear, frequency = 12, start = c(2009,1,1))
+```
+
+### Converting the sales price from train data into Timeseries (Without interpolation)
+```{r}
+train_data_men_ts = ts(train_data_men$Sales.In.ThousandDollars., frequency = 12, start = c(2009,1,1))
+train_data_women_ts = ts(train_data_women$Sales.In.ThousandDollars., frequency = 12, start = c(2009,1,1))
+train_data_others_ts = ts(train_data_others$Sales.In.ThousandDollars., frequency = 12, start = c(2009,1,1))
+```
+
+### Converting the sales price from train data into Timeseries (linear interpolation)
+```{r}
+train_data_men_linear_ts = ts(train_data_men_linear, frequency = 12, start = c(2009,1,1))
+train_data_women_linear_ts = ts(train_data_women_linear, frequency = 12, start = c(2009,1,1))
+train_data_others_linear_ts = ts(train_data_others_linear, frequency = 12, start = c(2009,1,1))
+```
+
+## Plotting the times series of train data
+### Plotting of the Training data without any imputation of missing values
+```{r}
+plot(train_data_men_ts, type="l",lwd=3, col="blue", xlab = "Year", ylab="Sales Price",
+     main= "Plotting sales for Mens Clothing (Without Interpolation)")
+plot(train_data_women_ts, type="l",lwd=3, col="#FF1493",xlab = "Year", ylab="Sales Price",
+     main="Plotting sales for Womens Clothing (Without Interpolation)")
+plot(train_data_others_ts, type="l",lwd=3, col="green",xlab = "Year", ylab="Sales Price",
+     main="Plotting sales for Others Clothing (Without Interpolation)")
+```
+
+### Plotting of the Traing data after interpolation (linear)
+```{r}
+plot(train_data_men_linear_ts, type="l",lwd=3, col="blue", ylab="Sales Price",
+     main="Plotting sales for Mens Clothing (With Interpolation)")
+plot(train_data_women_linear_ts, type="l",lwd=3, col="#FF1493", ylab="Sales Price",
+     main="Plotting sales for Womens Clothing (With Interpolation)")
+plot(train_data_others_linear_ts, type="l",lwd=3, col="green", ylab="Sales Price",
+     main="Plotting sales for Others Clothing (With Interpolation)")
+```
+
+# Decomposing the Train data to check the Trend, Seasonality and Noise
+### Decomposing the Time Series created with linear imputation
+```{r}
+train_data_men_spl_decomposed=decompose(train_data_men_linear_ts)
+train_data_women_spl_decomposed=decompose(train_data_women_linear_ts)
+train_data_others_spl_decomposed=decompose(train_data_others_linear_ts)
+par(mfrow=c(1,3))
+plot(train_data_men_spl_decomposed,col="blue")
+plot(train_data_women_spl_decomposed,col="#FF1493")
+plot(train_data_others_spl_decomposed,col="green")
+```
+
+# Holt-Winters Model
+## HoltWinters Model for Mens Category
+```{r}
+hw_men = HoltWinters(train_data_men_linear_ts,alpha = 0.6, beta=TRUE, gamma=TRUE, seasonal = "additive")
+hw_men
+forecast_hw_men = forecast(hw_men, h=12)
+hw_acc_men =accuracy(forecast_hw_men,validation_data_men$Sales.In.ThousandDollars.)
+hw_acc_men
+plot(forecast_hw_men,col="blue", )
+
+# Creating the model on the entire dataset and predicting for mens category
+hw_men_total = HoltWinters(total_data_men_linear_ts,alpha = 0.6, beta=TRUE, gamma=TRUE, seasonal = "additive")
+hw_men_total
+forcast_hw_men_total = forecast(hw_men_total, h = 12)
+plot(forcast_hw_men_total, col = "blue", xlab = "Sales")
+```
+```{r}
+forcast_hw_men_total$mean
+print("Lower: 80%")
+forcast_hw_men_total$lower[,1]
+print("Lower: 90%")
+forcast_hw_men_total$lower[,2]
+print("Upper: 80% - Preffered")
+forcast_hw_men_total$upper[,1]
+print("Upper: 90%")
+forcast_hw_men_total$upper[,2]
+```
+
+## Holtwinters Model for WomenCategory
+```{r}
+hw_women = HoltWinters(train_data_women_linear_ts, alpha = 0.6, beta=TRUE, gamma=TRUE, seasonal = "additive")
+hw_women
+forecast_hw_women = forecast(hw_women, h=12)
+hw_acc_women =accuracy(forecast_hw_women,validation_data_women$Sales.In.ThousandDollars.)
+hw_acc_women
+plot(forecast_hw_women,col="#FF1493")
+# Creating the model on the entire dataset and predicting for Womens category
+hw_women_total = HoltWinters(total_data_women_linear_ts,alpha = 0.6, beta=TRUE, gamma=TRUE, seasonal = "additive")
+hw_women_total
+forcast_hw_women_total = forecast(hw_women_total, h = 12)
+plot(forcast_hw_women_total, col = "#FF1493")
+```
+```{r}
+print("mean-Preffered")
+forcast_hw_women_total$mean
+print("Lower: 80%")
+forcast_hw_women_total$lower[,1]
+print("Lower: 90%")
+forcast_hw_women_total$lower[,2]
+print("Upper: 80%")
+forcast_hw_women_total$upper[,1]
+print("Upper: 90%")
+forcast_hw_women_total$upper[,2]
+```
+
+## HoltWinters Model for OthersCategory
+```{r}
+hw_others = HoltWinters(train_data_others_linear_ts, alpha = 0.2, beta=TRUE, gamma=TRUE, seasonal = "additive")
+hw_others
+forecast_hw_others = forecast(hw_others, h=12)
+hw_acc_others =accuracy(forecast_hw_others,validation_data_others$Sales.In.ThousandDollars.)
+hw_acc_others
+plot(forecast_hw_others,col="green")
+```
+```{r}
+# Creating the model on the entire dataset and predicting for Others category
+hw_others_total = HoltWinters(total_data_others_linear_ts,alpha = 0.2, beta=TRUE, gamma=TRUE, seasonal = "additive")
+hw_others_total
+forcast_hw_others_total = forecast(hw_others_total, h = 12)
+plot(forcast_hw_others_total, col = "green")
+```
+```{r}
+print("mean")
+forcast_hw_others_total$mean
+print("Lower: 80%")
+forcast_hw_others_total$lower[,1]
+print("Lower: 90%")
+forcast_hw_others_total$lower[,2]
+print("Upper: 80%")
+forcast_hw_others_total$upper[,1]
+print("Upper: 90%")
+forcast_hw_others_total$upper[,2]
+```
+
+# ACF and PACF
+* Autocorrelation is the linear dependence of a variable with itself at two points in time
+* For stationary processes, autocorrelation between any two observations only depends on the time lag h between them
+*  Partial autocorrelation is the autocorrelation between yt and yt(h) after removing any linear dependence on y1,y2, ..., yt(h+1)
+
+### Verifying the ACF and PACF values
+```{r}
+par(mfrow=c(2,2))
+acf(train_data_men_linear_ts,lag.max =120)
+pacf(train_data_men_linear_ts,lag.max =120)
+
+
+par(mfrow=c(2,2))
+acf(train_data_women_linear_ts,lag.max =120)
+pacf(train_data_women_linear_ts,lag.max =120)
+
+
+par(mfrow=c(2,2))
+acf(train_data_others_linear_ts,lag.max =120)
+pacf(train_data_others_linear_ts,lag.max =120)
+```
+
+# AUTO ARIMA
+```{r}
+auto_arima_men = auto.arima(train_data_men_linear_ts, ic='aic')
+auto_arima_women = auto.arima(train_data_women_linear_ts, ic='aic')
+auto_arima_others = auto.arima(train_data_others_linear_ts, ic='aic')
+```
+
+### Summary of the Auto arima model
+```{r}
+summary(auto_arima_men)
+summary(auto_arima_women)
+summary(auto_arima_others)
+```
+
+### Forecasting for Men clothing, Women Clothing and Others Clothing on train and validation
+```{r}
+forecast_a_arima_men = forecast(auto_arima_men, h=12)
+forecast_a_arima_women = forecast(auto_arima_women, h=12)
+forecast_a_arima_others = forecast(auto_arima_others, h=12)
+acc_men =accuracy(forecast_a_arima_men,validation_data_men$Sales.In.ThousandDollars.)
+acc_women =accuracy(forecast_a_arima_women,validation_data_women$Sales.In.ThousandDollars.)
+acc_others =accuracy(forecast_a_arima_others,validation_data_others$Sales.In.ThousandDollars.)
+acc_men
+acc_women
+acc_others
+```
+
+### Plotting the values
+```{r}
+plot(forecast_a_arima_men,col="blue", xlab = "Year", ylab = "Sales(In ThousandDollars)")
+plot(forecast_a_arima_women,col="#FF1493", xlab = "Year", ylab = "Sales(In ThousandDollars)")
+plot(forecast_a_arima_others,col="green", xlab = "Year", ylab = "Sales(In ThousandDollars)")
+```
+
+### Forecasting (Auto ARIMA): 
+```{r}
+# Creating an auto arima model
+auto_arima_total_men = auto.arima(total_data_men_linear_ts, ic='aic')
+auto_arima_total_women = auto.arima(total_data_women_linear_ts, ic='aic')
+auto_arima_total_others = auto.arima(total_data_others_linear_ts, ic='aic')
+
+# On Combined Data
+summary(auto_arima_total_men)
+summary(auto_arima_total_women)
+summary(auto_arima_total_others)
+
+# Forecasting
+forecast_auto_arima_men = forecast(auto_arima_total_men, h=12)
+forecast_auto_arima_women = forecast(auto_arima_total_women, h=12)
+forecast_auto_arima_others = forecast(auto_arima_total_others, h=12)
+
+# Plotting the forecasted results
+plot(forecast_auto_arima_men,col="blue", xlab = "Year", ylab = "Sales(In ThousandDollars)")
+plot(forecast_auto_arima_women,col="#FF1493", xlab = "Year", ylab = "Sales(In ThousandDollars)")
+plot(forecast_auto_arima_others,col="green", xlab = "Year", ylab = "Sales(In ThousandDollars)")
+```
+
+## Forecasted results for each category
+
+### Select the values from either mean , or lower or upper confidence values based on the plot.
+```{r}
+forecast_auto_arima_men$upper[,1]
+forecast_auto_arima_women$lower[,1]
+forecast_auto_arima_others$lower[,2]
+```
+
+# Manual ARIMA model
+## Manual AARIMA model for women
+### Step 1: Plot the Sales Forecasting data
+```{r}
+plot(total_data_women_linear_ts, col = "#FF1493", main = "Sales for the period from 2009 to 2015: ARIMA(0,0,0)",
+     sub = "Category: Womens' Clothing", xlab = "Year", ylab = "Sales(In ThousandDollars)")
+```
+
+### Step 2: Plotting ACF and PACF to get preliminary understanding of the process
+```{r}
+acf = acf(total_data_women_linear_ts, lag.max =120, plot = FALSE)
+pacf = pacf(total_data_women_linear_ts, lag.max =120, plot = FALSE)
+par(mfrow = c(1, 2), bg = "white")
+plot(acf, col = "#FF1493", sub = "Series Growth", xlab = "Lag", ylab = "ACF")
+plot(pacf, col = "#FF1493", sub = "Series Growth", xlab = "Lag", ylab = "PACF")
+```
+
+### Step 3: The suspension bridge pattern in ACF suggests both nonstationarity and strong seasonality.  Perform a non-seasonal difference to give an ARIMA(0,1,0) model.
+```{r}
+par(mfrow = c(1, 1), bg = "white")
+total_data_women_linear_ts_diff1 = diff(total_data_women_linear_ts, differences = 1)
+plot(total_data_women_linear_ts_diff1, col = "#FF1493", main = "Sales for the period from 2009 to 2015: ARIMA(0,1,0)",
+     sub = "Category: Womens' Clothing", xlab = "Year", ylab = "Sales(In ThousandDollars)")
+```
+
+### Step 4: Check ACF and PACF to explore remaining dependencies
+```{r}
+acf_1 = acf(total_data_women_linear_ts_diff1, lag.max =120, plot = FALSE)
+pacf_1 = pacf(total_data_women_linear_ts_diff1, lag.max =120, plot = FALSE)
+par(mfrow = c(1, 2), bg = "white")
+plot(acf_1, col = "#FF1493", sub = "Series Growth", xlab = "Lag", ylab = "ACF")
+plot(pacf_1, col = "#FF1493", sub = "Series Growth", xlab = "Lag", ylab = "PACF")
+```
+
+### Step 5: The differenced series looks stationary but has strong seasonal lags. Perform a seasonal differencing on the original time series (ARIMA(0,0,0)(0,1,0)12)
+```{r}
+par(mfrow = c(1, 1), bg = "white")
+total_data_women_linear_ts_sdiff1 = diff(total_data_women_linear_ts, lag = 12, differences = 1)
+plot(total_data_women_linear_ts_sdiff1, col = "#FF1493", main = "Sales for the period from 2009 to 2015: (ARIMA(0,0,0)(0,1,0)12)",sub = "Category: Womens' Clothing",
+     xlab = "Year", ylab = "Sales(In ThousandDollars)")
+```
+
+### Step 6: Check ACF and PACF for seasonally differenced data to explore remaining dependencies
+```{r}
+acf_s1 = acf(total_data_women_linear_ts_sdiff1, lag.max =120, plot = FALSE)
+pacf_s1 = pacf(total_data_women_linear_ts_sdiff1, lag.max =120, plot = FALSE)
+par(mfrow = c(1, 2), bg = "white")
+plot(acf_s1, col = "#FF1493", sub = "Series Growth", xlab = "Lag", ylab = "ACF")
+plot(pacf_s1, col = "#FF1493", sub = "Series Growth", xlab = "Lag", ylab = "PACF")
+```
+
+### Step 7: Strong positive autocorrelation indicates need for either an AR component or a non-seasonal differencing.  Perform a non-seasonal differencing on a seasonal differenced data.
+```{r}
+par(mfrow = c(1, 1), bg = "white")
+total_data_women_linear_ts_sdiff2 = diff(total_data_women_linear_ts_sdiff1, differences = 1)
+plot(total_data_women_linear_ts_sdiff2, col = "#FF1493", main = "Sales for the period from 2009 to 2015: ARIMA(0,1,0)(0,1,0)12",sub = "Category: Womens' Clothing", xlab = "Year", ylab = "Sales(In ThousandDollars)")
+```
+
+### Step 8: Check ACF and PACF to explore remaining dependencies
+```{r}
+acf_s1d2 = acf(total_data_women_linear_ts_sdiff2, lag.max =120, plot = FALSE)
+pacf_s1d2 = pacf(total_data_women_linear_ts_sdiff2, lag.max =120, plot = FALSE)
+par(mfrow = c(1, 2), bg = "white")
+plot(acf_s1d2, col = "#FF1493", sub = "Series Growth", xlab = "Lag", ylab = "ACF")
+plot(pacf_s1d2, col = "#FF1493", sub = "Series Growth", xlab = "Lag", ylab = "PACF")
+```
+
+### Step 9: ACF and PACF shows that we need to use an AR(1) and an MA(1) term.
+```{r}
+sales_women_arima = Arima(total_data_women_linear_ts, order = c(1,1,1), seasonal = c(0,1,0), include.drift = FALSE)
+summary(sales_women_arima)
+```
+
+### Step 10: Forcasting the sales for women category for the next year
+```{r}
+forecast_manual_arima_women = forecast(sales_women_arima, h = 12)
+plot(forecast_manual_arima_women,col="#FF1493", xlab = "Year", ylab = "Sales(In ThousandDollars)")
+plot(sales_women_arima$residuals)
+```
+
+## Manual AARIMA model for men
+### Step 1: Plot the Sales Forecasting data
+```{r}
+plot(total_data_men_linear_ts, col = "blue", main = "Sales for the period from 2009 to 2015: ARIMA(0,0,0)", sub = "Category: men's Clothing", xlab = "Year", ylab = "Sales(In ThousandDollars)")
+```
+
+### Step 2: Plotting ACF and PACF to get preliminary understanding of the process
+```{r}
+acfm = acf(total_data_men_linear_ts, lag.max =120, plot = FALSE)
+pacfm = pacf(total_data_men_linear_ts, lag.max =120, plot = FALSE)
+par(mfrow = c(1, 2), bg = "white")
+plot(acfm, col = "blue", sub = "Series Growth", xlab = "Lag", ylab = "ACF")
+plot(pacfm, col = "blue", sub = "Series Growth", xlab = "Lag", ylab = "PACF")
+```
+
+### Step 3: The suspension bridge pattern in ACF suggests both nonstationarity and strong seasonality.  Perform a non-seasonal difference to give an ARIMA(0,1,0) model.
+```{r}
+par(mfrow = c(1, 1), bg = "white")
+total_data_men_linear_ts_diff1 = diff(total_data_men_linear_ts, differences = 1)
+plot(total_data_men_linear_ts_diff1, col = "blue", main = "Sales for the period from 2009 to 2015: ARIMA(0,1,0)",
+     sub = "Category: men's Clothing", xlab = "Year", ylab = "Sales(In ThousandDollars)")
+```
+
+### Step 4: Check ACF and PACF to explore remaining dependencies
+```{r}
+acfm_1 = acf(total_data_men_linear_ts_diff1, lag.max =120, plot = FALSE)
+pacfm_1 = pacf(total_data_men_linear_ts_diff1, lag.max =120, plot = FALSE)
+par(mfrow = c(1, 2), bg = "white")
+plot(acfm_1, col = "blue", sub = "Series Growth", xlab = "Lag", ylab = "ACF")
+plot(pacfm_1, col = "blue", sub = "Series Growth", xlab = "Lag", ylab = "PACF")
+```
+
+### Step 5: The differenced series looks stationary but has strong seasonal lags. Perform a seasonal differencing on the original time series (ARIMA(0,0,0)(0,1,0)12)
+```{r}
+par(mfrow = c(1, 1), bg = "white")
+total_data_men_linear_ts_sdiff1 = diff(total_data_men_linear_ts, lag = 12, differences = 1)
+plot(total_data_men_linear_ts_sdiff1, col = "blue", main = "Sales for the period from 2009 to 2015: (ARIMA(0,0,0)(0,1,0)12)",sub = "Category: mens' Clothing",
+     xlab = "Year", ylab = "Sales(In ThousandDollars)")
+```
+
+### Step 6: Check ACF and PACF for seasonally differenced data to explore remaining dependencies
+```{r}
+acfm_s1 = acf(total_data_men_linear_ts_sdiff1, lag.max =120, plot = FALSE)
+pacfm_s1 = pacf(total_data_men_linear_ts_sdiff1, lag.max =120, plot = FALSE)
+par(mfrow = c(1, 2), bg = "white")
+plot(acfm_s1, col = "blue", sub = "Series Growth", xlab = "Lag", ylab = "ACF")
+plot(pacfm_s1, col = "blue", sub = "Series Growth", xlab = "Lag", ylab = "PACF")
+```
+
+### Step 7: Strong positive autocorrelation indicates need for either an AR component or a non-seasonal differencing.  Perform a non-seasonal differencing on a seasonal differenced data.
+```{r}
+par(mfrow = c(1, 1), bg = "white")
+total_data_men_linear_ts_sdiff2 = diff(total_data_men_linear_ts_sdiff1, differences = 1)
+plot(total_data_men_linear_ts_sdiff2, col = "blue", main = "Sales for the period from 2009 to 2015: ARIMA(0,1,0)(0,1,0)12",sub = "Category: mens' Clothing", xlab = "Year", ylab = "Sales(In ThousandDollars)")
+```
+
+### Step 8: Check ACF and PACF to explore remaining dependencies
+```{r}
+acfm_s1d2 = acf(total_data_men_linear_ts_sdiff2, lag.max =120, plot = FALSE)
+pacfm_s1d2 = pacf(total_data_men_linear_ts_sdiff2, lag.max =120, plot = FALSE)
+par(mfrow = c(1, 2), bg = "white")
+plot(acfm_s1d2, col = "blue", sub = "Series Growth", xlab = "Lag", ylab = "ACF")
+plot(pacfm_s1d2, col = "blue", sub = "Series Growth", xlab = "Lag", ylab = "PACF")
+```
+
+### Step 9: ACF and PACF shows that we need to use an AR(1) and an MA(1) and a negative seasonal term.
+```{r}
+sales_men_arima = Arima(total_data_men_linear_ts, order = c(1,1,1), seasonal = c(0,1,1), include.drift = FALSE)
+summary(sales_men_arima)
+```
+
+### Step 10: Forcasting the sales for men category for the next year
+```{r}
+forecast_manual_arima_men = forecast(sales_men_arima, h = 12)
+plot(forecast_manual_arima_men,col="blue", xlab = "Year", ylab = "Sales(In ThousandDollars)")
+plot(sales_men_arima$residuals)
+```
+
+## Manual AARIMA model for others
+### Step 1: Plot the Sales Forecasting data
+```{r}
+plot(total_data_others_linear_ts, col = "green", main = "Sales for the period from 2009 to 2015: ARIMA(0,0,0)", sub = "Category: others' Clothing", xlab = "Year", ylab = "Sales(In ThousandDollars)")
+```
+
+### Step 2: Plotting ACF and PACF to get preliminary understanding of the process
+```{r}
+acfo = acf(total_data_others_linear_ts, lag.max =120, plot = FALSE)
+pacfo = pacf(total_data_others_linear_ts, lag.max =120, plot = FALSE)
+par(mfrow = c(1, 2), bg = "white")
+plot(acf, col = "green", sub = "Series Growth", xlab = "Lag", ylab = "ACF")
+plot(pacf, col = "green", sub = "Series Growth", xlab = "Lag", ylab = "PACF")
+```
+
+### Step 3: The suspension bridge pattern in ACF suggests both nonstationarity and strong seasonality.  Perform a non-seasonal difference to give an ARIMA(0,1,0) model.
+```{r}
+par(mfrow = c(1, 1), bg = "white")
+total_data_others_linear_ts_diff1 = diff(total_data_others_linear_ts, differences = 1)
+plot(total_data_others_linear_ts_diff1, col = "green", main = "Sales for the period from 2009 to 2015: ARIMA(0,1,0)",
+     sub = "Category: others' Clothing", xlab = "Year", ylab = "Sales(In ThousandDollars)")
+```
+
+### Step 4: Check ACF and PACF to explore remaining dependencies
+```{r}
+acfo_1 = acf(total_data_others_linear_ts_diff1, lag.max =120, plot = FALSE)
+pacfo_1 = pacf(total_data_others_linear_ts_diff1, lag.max =120, plot = FALSE)
+par(mfrow = c(1, 2), bg = "white")
+plot(acfo_1, col = "green", sub = "Series Growth", xlab = "Lag", ylab = "ACF")
+plot(pacfo_1, col = "green", sub = "Series Growth", xlab = "Lag", ylab = "PACF")
+```
+
+### Step 5: The differenced series looks stationary but has strong seasonal lags. Perform a seasonal differencing on the original time series (ARIMA(0,0,0)(0,1,0)12)
+```{r}
+par(mfrow = c(1, 1), bg = "white")
+total_data_others_linear_ts_sdiff1 = diff(total_data_others_linear_ts, lag = 12, differences = 1)
+plot(total_data_others_linear_ts_sdiff1, col = "green", main = "Sales for the period from 2009 to 2015: (ARIMA(0,0,0)(0,1,0)12)",sub = "Category: others' Clothing",
+     xlab = "Year", ylab = "Sales(In ThousandDollars)")
+```
+
+### Step 6: Check ACF and PACF for seasonally differenced data to explore remaining dependencies
+```{r}
+acfo_s1 = acf(total_data_others_linear_ts_sdiff1, lag.max =120, plot = FALSE)
+pacfo_s1 = pacf(total_data_others_linear_ts_sdiff1, lag.max =120, plot = FALSE)
+par(mfrow = c(1, 2), bg = "white")
+plot(acfo_s1, col = "green", sub = "Series Growth", xlab = "Lag", ylab = "ACF")
+plot(pacfo_s1, col = "green", sub = "Series Growth", xlab = "Lag", ylab = "PACF")
+```
+
+### Step 7: Strong positive autocorrelation indicates need for either an AR component or a non-seasonal differencing.  Perform a non-seasonal differencing on a seasonal differenced data.
+```{r}
+par(mfrow = c(1, 1), bg = "white")
+total_data_others_linear_ts_sdiff2 = diff(total_data_others_linear_ts_sdiff1, differences = 1)
+plot(total_data_others_linear_ts_sdiff2, col = "green", main = "Sales for the period from 2009 to 2015: ARIMA(0,1,0)(0,1,0)12",sub = "Category: others' Clothing", xlab = "Year", ylab = "Sales(In ThousandDollars)")
+```
+
+### Step 8: Check ACF and PACF to explore remaining dependencies
+```{r}
+acfo_s1d2 = acf(total_data_others_linear_ts_sdiff2, lag.max =120, plot = FALSE)
+pacfo_s1d2 = pacf(total_data_others_linear_ts_sdiff2, lag.max =120, plot = FALSE)
+par(mfrow = c(1, 2), bg = "white")
+plot(acfo_s1d2, col = "green", sub = "Series Growth", xlab = "Lag", ylab = "ACF")
+plot(pacfo_s1d2, col = "green", sub = "Series Growth", xlab = "Lag", ylab = "PACF")
+```
+
+### Step 9: ACF and PACF shows that we need to use an AR(1) and an MA(1) term and a positive seasonal term.
+```{r}
+sales_others_arima = Arima(total_data_others_linear_ts, order = c(1,1,1), seasonal = c(1,1,0), include.drift = FALSE)
+summary(sales_others_arima)
+```
+
+### Step 10: Forcasting the sales for others category for the next year
+```{r}
+forecast_manual_arima_others = forecast(sales_others_arima, h = 12)
+plot(forecast_manual_arima_others,col="green", xlab = "Year", ylab = "Sales(In ThousandDollars)")
+```
+
+# Writing the results into the excel sheet
+```{r}
+template = read.csv("template.csv", header = TRUE)
+```
+```{r}
+women_results = data.frame(forecast_manual_arima_women$lower[,1])
+colnames(women_results) = c("target")
+men_results = data.frame(forecast_manual_arima_men$upper[,1])
+colnames(men_results) = c("target")
+others_results = data.frame(forecast_manual_arima_others$lower[,1])
+colnames(others_results) = c("target")
+results = bind_rows(women_results,men_results,others_results)
+test_result = cbind(template$Year,template$Month, template$ProductCategory, results)
+colnames(test_result) = c("Year","Month","ProductCategory","target")
+write.csv(x = test_result, file = "prediction.csv", row.names = FALSE )
+```
